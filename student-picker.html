@@ -1059,10 +1059,6 @@
         ⚙ Dashboard Settings
       </button>
 
-      <button id="rosterButton">
-        Edit Roster
-      </button>
-
       <button id="poolButton">
         View Pool
       </button>
@@ -1078,7 +1074,7 @@
     </div>
 
     <div class="small-note">
-      Classes and rosters come from Dashboard Settings. Picker pools, undo history, and generated groups are remembered on this browser profile.
+      Classes and rosters are managed in Dashboard Settings. Picker pools, undo history, and generated groups are remembered separately.
     </div>
 
   </div>
@@ -1131,63 +1127,6 @@
         id="saveSettingsButton"
         class="primary">
         Save
-      </button>
-
-    </div>
-
-  </div>
-
-</div>
-
-
-<!-- =========================================================
-     ROSTER MODAL
-========================================================= -->
-
-<div id="rosterModal" class="modal-overlay">
-
-  <div class="modal">
-
-    <div class="modal-header">
-
-      <h2 id="rosterModalTitle">
-        Period 1 Roster
-      </h2>
-
-      <button
-        id="closeRosterModal"
-        class="close-button">
-        ×
-      </button>
-
-    </div>
-
-    <div class="modal-body">
-
-      <p class="small-note" style="margin-top:0; font-size:14px;">
-        Paste one student name per line.
-        Saving here updates the shared Dashboard roster for this class.
-      </p>
-
-      <textarea
-        id="rosterInput"
-        placeholder="Abigail Smith
-Bobby Horn
-Harrison Hyun
-James Martinez"></textarea>
-
-    </div>
-
-    <div class="modal-footer">
-
-      <button id="cancelRosterButton">
-        Cancel
-      </button>
-
-      <button
-        id="saveRosterButton"
-        class="primary">
-        Save Roster
       </button>
 
     </div>
@@ -1255,11 +1194,15 @@ James Martinez"></textarea>
   ];
 
   /*
-    Same storage key as previous versions.
-    Existing rosters should carry over.
+    Dashboard 3.0 uses its own Picker storage so experiments here
+    do not change Dashboard 2.0's pool/history/group state.
+    On first load, the old Picker state is copied over once.
   */
 
   const STORAGE_KEY =
+    "teacherDashboard3.studentPicker.v1";
+
+  const V2_STORAGE_KEY =
     "studentNamePicker_v1";
 
 
@@ -1328,14 +1271,24 @@ James Martinez"></textarea>
         STORAGE_KEY
       );
 
-    if (!saved) {
+    const v2Saved =
+      !saved
+        ? localStorage.getItem(
+            V2_STORAGE_KEY
+          )
+        : null;
+
+    const sourceText =
+      saved || v2Saved;
+
+    if (!sourceText) {
       return createDefaultState();
     }
 
     try {
 
       const parsed =
-        JSON.parse(saved);
+        JSON.parse(sourceText);
 
       if (!parsed.periods) {
         parsed.periods = {};
@@ -1474,6 +1427,15 @@ James Martinez"></textarea>
 
       }
 
+      if (!saved && v2Saved) {
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(parsed)
+        );
+
+      }
+
       return parsed;
 
     }
@@ -1508,10 +1470,6 @@ James Martinez"></textarea>
   /* =========================================================
      DASHBOARD SHARED DATA INTEGRATION
   ========================================================= */
-
-  const SHARED_ROSTER_MIGRATION_KEY =
-    "studentPicker_sharedRosterMigration_v1";
-
 
   function normalizeSharedNames(names) {
 
@@ -1617,54 +1575,9 @@ James Martinez"></textarea>
 
 
     /*
-      FIRST-RUN MIGRATION:
-      If this older Student Picker already has rosters
-      and the new Dashboard roster is empty, move the
-      old roster into shared Dashboard data one time.
+      Dashboard Settings is the single source of truth
+      for class rosters and global class visibility.
     */
-
-    const migrationDone =
-      localStorage.getItem(
-        SHARED_ROSTER_MIGRATION_KEY
-      ) === "true";
-
-
-    if (!migrationDone) {
-
-      PERIODS.forEach(period => {
-
-        const sharedRoster =
-          DashboardData.getRoster(
-            period
-          );
-
-        const oldPickerRoster =
-          normalizeSharedNames(
-            state.periods[
-              period
-            ].masterRoster
-          );
-
-        if (
-          sharedRoster.length === 0 &&
-          oldPickerRoster.length > 0
-        ) {
-
-          DashboardData.saveRoster(
-            period,
-            oldPickerRoster
-          );
-
-        }
-
-      });
-
-      localStorage.setItem(
-        SHARED_ROSTER_MIGRATION_KEY,
-        "true"
-      );
-
-    }
 
 
     /*
@@ -1716,8 +1629,9 @@ James Martinez"></textarea>
 
     /*
       Dashboard master rosters are authoritative.
-      If a roster changed centrally, reset that
-      period's temporary picker pool/history/groups
+      Student Picker keeps a local roster snapshot only
+      to detect changes. If a roster changes centrally,
+      reset that period's temporary pool/history/groups
       so stale students cannot remain.
     */
 
@@ -1987,11 +1901,6 @@ James Martinez"></textarea>
       "periodVisibilityOptions"
     );
 
-  const rosterButton =
-    document.getElementById(
-      "rosterButton"
-    );
-
   const poolButton =
     document.getElementById(
       "poolButton"
@@ -2005,36 +1914,6 @@ James Martinez"></textarea>
   const resetButton =
     document.getElementById(
       "resetButton"
-    );
-
-  const rosterModal =
-    document.getElementById(
-      "rosterModal"
-    );
-
-  const rosterModalTitle =
-    document.getElementById(
-      "rosterModalTitle"
-    );
-
-  const rosterInput =
-    document.getElementById(
-      "rosterInput"
-    );
-
-  const saveRosterButton =
-    document.getElementById(
-      "saveRosterButton"
-    );
-
-  const cancelRosterButton =
-    document.getElementById(
-      "cancelRosterButton"
-    );
-
-  const closeRosterModal =
-    document.getElementById(
-      "closeRosterModal"
     );
 
   const poolModal =
@@ -2726,10 +2605,10 @@ James Martinez"></textarea>
     if (total === 0) {
 
       studentName.textContent =
-        "Add a roster to begin";
+        "No roster found";
 
       spinButton.textContent =
-        "ADD ROSTER";
+        "OPEN DASHBOARD SETTINGS";
 
       spinButton.disabled =
         false;
@@ -2799,7 +2678,8 @@ James Martinez"></textarea>
       data.masterRoster.length === 0
     ) {
 
-      openRosterEditor();
+      window.location.href =
+        "settings.html";
 
       return;
 
@@ -3260,7 +3140,8 @@ James Martinez"></textarea>
       data.masterRoster.length === 0
     ) {
 
-      openRosterEditor();
+      window.location.href =
+        "settings.html";
 
       return;
 
@@ -3643,101 +3524,6 @@ James Martinez"></textarea>
 
 
   /* =========================================================
-     ROSTER EDITOR
-  ========================================================= */
-
-  function openRosterEditor() {
-
-    const data =
-      currentData();
-
-    rosterModalTitle.textContent =
-      `${getClassLabel(
-        state.currentPeriod
-      )} Roster`;
-
-    rosterInput.value =
-      data.masterRoster.join(
-        "\n"
-      );
-
-    rosterModal.classList.add(
-      "visible"
-    );
-
-    rosterInput.focus();
-
-  }
-
-
-  function closeRosterEditor() {
-
-    rosterModal.classList.remove(
-      "visible"
-    );
-
-  }
-
-
-  function saveRoster() {
-
-    let names =
-      rosterInput.value
-
-        .split(/\r?\n/)
-
-        .map(
-          name =>
-            name.trim()
-        )
-
-        .filter(
-          Boolean
-        );
-
-    names =
-      [...new Set(names)];
-
-    const data =
-      currentData();
-
-    DashboardData.saveRoster(
-      state.currentPeriod,
-      names
-    );
-
-    data.masterRoster =
-      names;
-
-    data.pool =
-      [...names];
-
-    data.history =
-      [];
-
-    data.groups =
-      [];
-
-    pendingStudent =
-      null;
-
-    participationAddedForPending =
-      false;
-
-    saveState();
-
-    closeRosterEditor();
-
-    updateUI();
-
-    showToast(
-      `${names.length} students saved to Dashboard`
-    );
-
-  }
-
-
-  /* =========================================================
      VIEW CURRENT POOL
   ========================================================= */
 
@@ -3971,12 +3757,6 @@ James Martinez"></textarea>
   );
 
 
-  rosterButton.addEventListener(
-    "click",
-    openRosterEditor
-  );
-
-
   poolButton.addEventListener(
     "click",
     openPoolViewer
@@ -3992,24 +3772,6 @@ James Martinez"></textarea>
   resetButton.addEventListener(
     "click",
     resetPool
-  );
-
-
-  saveRosterButton.addEventListener(
-    "click",
-    saveRoster
-  );
-
-
-  cancelRosterButton.addEventListener(
-    "click",
-    closeRosterEditor
-  );
-
-
-  closeRosterModal.addEventListener(
-    "click",
-    closeRosterEditor
   );
 
 
@@ -4033,23 +3795,6 @@ James Martinez"></textarea>
       ) {
 
         closeSettings();
-
-      }
-
-    }
-  );
-
-
-  rosterModal.addEventListener(
-    "click",
-    event => {
-
-      if (
-        event.target ===
-        rosterModal
-      ) {
-
-        closeRosterEditor();
 
       }
 
@@ -4117,9 +3862,6 @@ James Martinez"></textarea>
         !settingsModal.classList.contains(
           "visible"
         ) &&
-        !rosterModal.classList.contains(
-          "visible"
-        ) &&
         !poolModal.classList.contains(
           "visible"
         )
@@ -4146,8 +3888,6 @@ James Martinez"></textarea>
       ) {
 
         closeSettings();
-
-        closeRosterEditor();
 
         closePoolViewer();
 
