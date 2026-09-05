@@ -242,6 +242,34 @@ const STORAGE_PREFIX="teacherDashboard3.agenda.v1_";
 const V2_STORAGE_PREFIX="bjhAgenda_v1_";
 const STORAGE_MIGRATION_KEY="teacherDashboard3.agendaMigration.v1";
 
+function migrateLegacyAgendaStorage(){
+  if(localStorage.getItem(STORAGE_MIGRATION_KEY)==="true")return;
+
+  try{
+    const copies=[];
+
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      if(!key||!key.startsWith(V2_STORAGE_PREFIX))continue;
+
+      const suffix=key.slice(V2_STORAGE_PREFIX.length);
+      const newKey=STORAGE_PREFIX+suffix;
+
+      if(localStorage.getItem(newKey)===null){
+        copies.push([newKey,localStorage.getItem(key)]);
+      }
+    }
+
+    copies.forEach(([key,value])=>{
+      if(value!==null)localStorage.setItem(key,value);
+    });
+
+    localStorage.setItem(STORAGE_MIGRATION_KEY,"true");
+  }catch(error){
+    console.error("Could not migrate Agenda data into Dashboard 3.0 storage:",error);
+  }
+}
+
 migrateLegacyAgendaStorage();
 
 let visiblePeriods=loadVisiblePeriods();
