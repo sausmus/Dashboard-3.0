@@ -1,7 +1,8 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "teacherDashboard.sharedData.v1";
+  const STORAGE_KEY = "teacherDashboard3.sharedData.v1";
+  const V2_STORAGE_KEY = "teacherDashboard.sharedData.v1";
   const CHANGE_EVENT = "teacher-dashboard-data-changed";
   const LEGACY_TRACKER_KEY = "teacherDashboard_shared_v1";
   const LEGACY_MIGRATION_KEY = "teacherDashboard.participationLegacyMigration.v1";
@@ -51,8 +52,8 @@
     };
   
   const SCHOOL_YEAR_BACKUP_KEY =
-      "teacherDashboard.schoolYearResetBackup.v1";
-
+    "teacherDashboard3.schoolYearResetBackup.v1";
+  
   const SCHOOL_YEAR_APP_KEYS = Object.freeze({
     scoreboard: "bjhScoreboard_v1",
     studentPicker: "studentNamePicker_v1",
@@ -455,25 +456,34 @@
   }
 
   function load() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
 
-      let data = saved
-        ? normalizeData(JSON.parse(saved))
-        : createDefaultData();
+    // Dashboard 3.0 uses its own localStorage key so cloud-sync work cannot
+    // overwrite Dashboard 2.0's local data. On first 3.0 load only, clone
+    // the existing 2.0 shared data as the starting point.
+    const v2Saved = !saved
+      ? localStorage.getItem(V2_STORAGE_KEY)
+      : null;
 
-      const migration = migrateLegacyTrackerData(data);
+    const sourceText = saved || v2Saved;
 
-      data = normalizeData(migration.data);
+    let data = sourceText
+      ? normalizeData(JSON.parse(sourceText))
+      : createDefaultData();
 
-      if (!saved || migration.changed) {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(data)
-        );
-      }
+    const migration = migrateLegacyTrackerData(data);
 
-      return clone(data);
+    data = normalizeData(migration.data);
+
+    if (!saved || migration.changed) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(data)
+      );
+    }
+
+    return clone(data);
 
     } catch (error) {
 
