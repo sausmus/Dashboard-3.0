@@ -338,7 +338,7 @@
     </div>
 
     <div class="bottom-bar">
-      <div>Every championship is stored separately in this browser. Classes and visibility come from Dashboard Settings.</div>
+      <div>Every championship is stored separately for Dashboard 3.0. Classes and visibility come from Dashboard Settings.</div>
       <div class="save-status" id="saveStatus">Saved</div>
     </div>
   </div>
@@ -400,7 +400,8 @@
 ========================================================= */
 
 const PERIODS = [1, 2, 3, 4, 5, 6, 7];
-const STORAGE_KEY = "bjhScoreboard_v1";
+const STORAGE_KEY = "teacherDashboard3.scoreboard.v1";
+const V2_STORAGE_KEY = "bjhScoreboard_v1";
 const SEASON_TITLES = [
   "School Year Championship",
   "Fall Semester Championship",
@@ -425,34 +426,46 @@ let state = loadState();
 
 function loadState(){
   const stored = localStorage.getItem(STORAGE_KEY);
-  if(!stored) return structuredCloneSafe(DEFAULT_STATE);
+  const legacy = !stored ? localStorage.getItem(V2_STORAGE_KEY) : null;
+  const source = stored || legacy;
+
+  if(!source) return structuredCloneSafe(DEFAULT_STATE);
+
   try{
-    const parsed = JSON.parse(stored);
+    const parsed = JSON.parse(source);
     if(!parsed || typeof parsed !== "object") throw new Error("Invalid state");
+
+    let next;
 
     // Migrate the original single-championship format automatically.
     if(Array.isArray(parsed.events)){
       const migratedTitle = SEASON_TITLES.includes(parsed.seasonName) ? parsed.seasonName : DEFAULT_SEASON_TITLE;
-      return {
+      next = {
         schemaVersion: 4,
         activeSeason: migratedTitle,
         seasons: {
           [migratedTitle]: {events: parsed.events}
         }
       };
+    }else{
+      next = {
+        schemaVersion: 4,
+        activeSeason: SEASON_TITLES.includes(parsed.activeSeason) ? parsed.activeSeason : DEFAULT_SEASON_TITLE,
+        seasons: parsed.seasons && typeof parsed.seasons === "object" ? parsed.seasons : {}
+      };
+
+      Object.keys(next.seasons).forEach(title => {
+        if(!next.seasons[title] || !Array.isArray(next.seasons[title].events)){
+          next.seasons[title] = {events: []};
+        }
+      });
     }
 
-    const next = {
-      schemaVersion: 4,
-      activeSeason: SEASON_TITLES.includes(parsed.activeSeason) ? parsed.activeSeason : DEFAULT_SEASON_TITLE,
-      seasons: parsed.seasons && typeof parsed.seasons === "object" ? parsed.seasons : {}
-    };
-
-    Object.keys(next.seasons).forEach(title => {
-      if(!next.seasons[title] || !Array.isArray(next.seasons[title].events)){
-        next.seasons[title] = {events: []};
-      }
-    });
+    // First Dashboard 3.0 load: copy the existing 2.0 scoreboard state
+    // into the 3.0 key, then keep the two versions independent.
+    if(!stored && legacy){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    }
 
     return next;
   }catch(error){
