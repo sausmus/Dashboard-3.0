@@ -527,8 +527,7 @@
       </div>
       <div class="toolbar-actions">
         <button id="undoButton" type="button">↶ Undo Last</button>
-        <button id="settingsButton" type="button">⚙ Settings</button>
-        <button id="rosterButton" type="button">Edit Roster</button>
+        <button id="settingsButton" type="button">⚙ Participation Settings</button>
         <button id="exportButton" type="button">Export CSV</button>
       </div>
     </div>
@@ -555,40 +554,15 @@
       </div>
 
       <div class="settings-block">
-        <div class="section-title">Visible Periods</div>
-        <div class="small-note" style="margin-top:0;margin-bottom:10px;">Hide periods you do not teach. Hidden periods keep all saved roster and participation data.</div>
-        <div id="periodVisibilityOptions"></div>
-      </div>
-
-      <div class="settings-block">
-        <div class="section-title">Shared Dashboard Data</div>
+        <div class="section-title">Dashboard Classes & Rosters</div>
         <div class="small-note" style="margin-top:0;">
-          This tracker uses <strong>teacherDashboard.sharedData.v1</strong>, the same shared data used by Dashboard Settings and Student Picker. Rosters, visible classes, the active participation term, goals, and participation points stay synchronized.
+          Class names, visible classes, and student rosters are managed only in <strong>Dashboard Settings</strong>.
         </div>
       </div>
     </div>
     <div class="modal-footer">
       <button id="cancelSettings" type="button">Cancel</button>
       <button id="saveSettings" class="primary" type="button">Save</button>
-    </div>
-  </div>
-</div>
-
-<div id="rosterModal" class="modal-overlay" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rosterTitle">
-    <div class="modal-header">
-      <h2 id="rosterTitle">Period 1 Roster</h2>
-      <button id="closeRoster" class="close-button" type="button" aria-label="Close roster editor">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="small-note" style="margin-top:0;margin-bottom:12px;">
-        Paste one student name per line. This is the same master roster used by Dashboard Settings and Student Picker, so saving here updates the entire dashboard.
-      </div>
-      <textarea id="rosterInput" placeholder="Abigail Smith&#10;Bobby Horn&#10;Harrison Hyun&#10;James Martinez"></textarea>
-    </div>
-    <div class="modal-footer">
-      <button id="cancelRoster" type="button">Cancel</button>
-      <button id="saveRoster" class="primary" type="button">Save Roster</button>
     </div>
   </div>
 </div>
@@ -602,12 +576,20 @@
 (() => {
   "use strict";
 
-  const UI_STORAGE_KEY = "participationTracker.ui.v2";
+  const UI_STORAGE_KEY = "teacherDashboard3.participation.ui.v2";
+  const V2_UI_STORAGE_KEY = "participationTracker.ui.v2";
   const PERIODS = ["1", "2", "3", "4", "5", "6", "7"];
 
   function loadUIState() {
     try {
-      const parsed = JSON.parse(localStorage.getItem(UI_STORAGE_KEY) || "{}");
+      const current = localStorage.getItem(UI_STORAGE_KEY);
+      const legacy = !current ? localStorage.getItem(V2_UI_STORAGE_KEY) : null;
+      const parsed = JSON.parse(current || legacy || "{}");
+
+      if (!current && legacy) {
+        localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(parsed));
+      }
+
       return {
         undoStack: Array.isArray(parsed.undoStack) ? parsed.undoStack.slice(-50) : []
       };
@@ -637,11 +619,7 @@
   const zeroList = el("zeroList");
   const undoButton = el("undoButton");
   const settingsModal = el("settingsModal");
-  const rosterModal = el("rosterModal");
-  const periodVisibilityOptions = el("periodVisibilityOptions");
   const goalInput = el("goalInput");
-  const rosterTitle = el("rosterTitle");
-  const rosterInput = el("rosterInput");
   const toast = el("toast");
 
   function activeTermId() {
@@ -772,7 +750,7 @@
     pulseZero.textContent = zero.length;
 
     if (scores.length === 0) {
-      zeroList.innerHTML = "<strong>No roster yet.</strong> Add students to begin tracking participation.";
+      zeroList.innerHTML = "<strong>No roster yet.</strong> Add students in Dashboard Settings to begin tracking participation.";
       return;
     }
 
@@ -808,7 +786,7 @@
     if (currentRoster().length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.innerHTML = "<strong>No students yet.</strong><br>Choose Edit Roster and paste one student per line.";
+      empty.innerHTML = "<strong>No students yet.</strong><br>Add students to this class in Dashboard Settings.";
       studentGrid.appendChild(empty);
       return;
     }
@@ -893,83 +871,16 @@
 
   function openSettingsModal() {
     goalInput.value = activeGoal();
-    periodVisibilityOptions.innerHTML = "";
-
-    DashboardData.getClasses().forEach(classInfo => {
-      const label = document.createElement("label");
-      label.className = "period-visibility-option";
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.value = classInfo.id;
-      checkbox.checked = classInfo.active;
-
-      const text = document.createElement("span");
-      text.textContent = classInfo.name;
-
-      label.append(checkbox, text);
-      periodVisibilityOptions.appendChild(label);
-    });
-
     openModal(settingsModal);
   }
 
   function saveSettingsFromModal() {
-    const selected = Array.from(
-      periodVisibilityOptions.querySelectorAll("input[type='checkbox']:checked")
-    ).map(input => input.value);
-
-    if (selected.length === 0) {
-      showToast("Keep at least one class visible");
-      return;
-    }
-
     const goal = Math.max(1, Math.min(20, Math.floor(Number(goalInput.value) || 5)));
     DashboardData.setParticipationGoal(activeTermId(), goal);
 
-    DashboardData.getClasses().forEach(classInfo => {
-      const shouldBeActive = selected.includes(classInfo.id);
-      if (classInfo.active !== shouldBeActive) {
-        DashboardData.setClassActive(classInfo.id, shouldBeActive);
-      }
-    });
-
     closeModal(settingsModal);
-    buildPeriodButtons();
     render();
-    showToast("Shared settings saved");
-  }
-
-  function openRosterModal() {
-    const period = currentPeriod();
-    rosterTitle.textContent = `${classLabel(period)} Roster`;
-    rosterInput.value = currentRoster().join("\n");
-    openModal(rosterModal);
-    rosterInput.focus();
-  }
-
-  function cleanRosterNames(text) {
-    const names = text
-      .split(/\r?\n/)
-      .map(name => name.trim().replace(/\s+/g, " "))
-      .filter(Boolean);
-
-    const seen = new Set();
-    return names.filter(name => {
-      const key = name.toLocaleLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  function saveRosterFromModal() {
-    const names = cleanRosterNames(rosterInput.value);
-    DashboardData.saveRoster(currentPeriod(), names);
-    closeModal(rosterModal);
-    buildPeriodButtons();
-    render();
-    showToast(`${names.length} students saved to shared Dashboard roster`);
+    showToast("Participation goal saved");
   }
 
   function undoLast() {
@@ -1040,14 +951,10 @@
   el("closeSettings").addEventListener("click", () => closeModal(settingsModal));
   el("cancelSettings").addEventListener("click", () => closeModal(settingsModal));
   el("saveSettings").addEventListener("click", saveSettingsFromModal);
-  el("rosterButton").addEventListener("click", openRosterModal);
-  el("closeRoster").addEventListener("click", () => closeModal(rosterModal));
-  el("cancelRoster").addEventListener("click", () => closeModal(rosterModal));
-  el("saveRoster").addEventListener("click", saveRosterFromModal);
   undoButton.addEventListener("click", undoLast);
   el("exportButton").addEventListener("click", exportCsv);
 
-  [settingsModal, rosterModal].forEach(modal => {
+  [settingsModal].forEach(modal => {
     modal.addEventListener("click", event => {
       if (event.target === modal) closeModal(modal);
     });
@@ -1056,7 +963,6 @@
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
     if (settingsModal.classList.contains("visible")) closeModal(settingsModal);
-    if (rosterModal.classList.contains("visible")) closeModal(rosterModal);
   });
 
   window.addEventListener(DashboardData.changeEvent, () => {
