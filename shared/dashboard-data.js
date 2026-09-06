@@ -59,7 +59,7 @@
     scoreboard: "teacherDashboard3.scoreboard.v1",
     studentPicker: "teacherDashboard3.studentPicker.v1",
     participationUI: "teacherDashboard3.participation.ui.v2",
-    bellState: "teacherDashboard.bellState.v1"
+    bellState: "teacherDashboard3.bellState.v1"
   });
 
   const AGENDA_STORAGE_PREFIX =
