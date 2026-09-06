@@ -9,10 +9,80 @@
   }
 
   const STATE_KEY =
+    "teacherDashboard3.bellState.v1";
+
+  const V2_STATE_KEY =
     "teacherDashboard.bellState.v1";
 
   const PREFS_KEY =
+    "teacherDashboard3.bellPrefs.v3";
+
+  const V2_PREFS_KEY =
     "bjhClassBellCountdownPrefsV3";
+
+  const STORAGE_MIGRATION_KEY =
+    "teacherDashboard3.bellMigration.v1";
+
+  function migrateLegacyBellStorage() {
+    if (
+      localStorage.getItem(
+        STORAGE_MIGRATION_KEY
+      ) === "true"
+    ) {
+      return;
+    }
+
+    try {
+      if (
+        localStorage.getItem(
+          STATE_KEY
+        ) === null
+      ) {
+        const legacyState =
+          localStorage.getItem(
+            V2_STATE_KEY
+          );
+
+        if (legacyState !== null) {
+          localStorage.setItem(
+            STATE_KEY,
+            legacyState
+          );
+        }
+      }
+
+      if (
+        localStorage.getItem(
+          PREFS_KEY
+        ) === null
+      ) {
+        const legacyPrefs =
+          localStorage.getItem(
+            V2_PREFS_KEY
+          );
+
+        if (legacyPrefs !== null) {
+          localStorage.setItem(
+            PREFS_KEY,
+            legacyPrefs
+          );
+        }
+      }
+
+      localStorage.setItem(
+        STORAGE_MIGRATION_KEY,
+        "true"
+      );
+
+    } catch (error) {
+      console.warn(
+        "BellService could not migrate Dashboard 2.0 bell settings into Dashboard 3.0.",
+        error
+      );
+    }
+  }
+
+  migrateLegacyBellStorage();
 
   const CHANGE_EVENT =
     "teacher-dashboard-bell-changed";
