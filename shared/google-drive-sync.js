@@ -2728,11 +2728,21 @@
     connectButton.type =
       "button";
 
+    const previouslyConnected =
+      Boolean(
+        getSyncMeta()
+          ?.folderId
+      );
+
     connectButton.textContent =
-      "☁ Connect Drive";
+      previouslyConnected
+        ? "☁ Reconnect Drive"
+        : "☁ Connect Drive";
 
     connectButton.title =
-      "Connect Teacher Dashboard to Google Drive.";
+      previouslyConnected
+        ? "Reconnect Teacher Dashboard to Google Drive."
+        : "Connect Teacher Dashboard to Google Drive.";
 
     Object.assign(
       connectButton.style,
