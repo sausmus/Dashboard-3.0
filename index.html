@@ -344,6 +344,34 @@
         transition: none;
       }
     }
+  
+    /* CLOUD-SYNC UTILITY SHELL
+       Keeps the Dashboard page (and its in-memory Google token) alive
+       while utilities run in a same-origin iframe. */
+    .dashboard-utility-shell {
+      position: fixed;
+      inset: 0;
+      z-index: 50000;
+      display: none;
+      background: var(--bg);
+    }
+
+    .dashboard-utility-shell.open {
+      display: block;
+    }
+
+    .dashboard-utility-frame {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: var(--bg);
+    }
+
+    body.utility-shell-open {
+      overflow: hidden;
+    }
+
   </style>
 </head>
 
@@ -488,6 +516,20 @@
     </footer>
 
   </main>
+
+  <div
+    id="dashboardUtilityShell"
+    class="dashboard-utility-shell"
+    aria-hidden="true">
+    <iframe
+      id="dashboardUtilityFrame"
+      class="dashboard-utility-frame"
+      title="Teacher Dashboard utility"
+      allow="fullscreen"
+      allowfullscreen>
+    </iframe>
+  </div>
+
   <script src="shared/dashboard-data.js"></script>
   <script src="shared/bell-service.js"></script>
   <script
@@ -500,5 +542,188 @@
   src="shared/google-drive-sync.js"
   defer>
 </script>
+
+<script>
+(() => {
+  "use strict";
+
+  const shell =
+    document.getElementById(
+      "dashboardUtilityShell"
+    );
+
+  const frame =
+    document.getElementById(
+      "dashboardUtilityFrame"
+    );
+
+  let shellOpen = false;
+
+  function isUtilityHref(href) {
+    return [
+      "agenda.html",
+      "bell-countdown.html",
+      "student-picker.html",
+      "participation-tracker.html",
+      "scoreboard.html",
+      "settings.html"
+    ].includes(href);
+  }
+
+  function openUtility(href) {
+    if (!isUtilityHref(href)) {
+      window.location.href = href;
+      return;
+    }
+
+    shellOpen = true;
+
+    shell.classList.add(
+      "open"
+    );
+
+    shell.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+    document.body.classList.add(
+      "utility-shell-open"
+    );
+
+    frame.src = href;
+  }
+
+  function closeUtility() {
+    shellOpen = false;
+
+    shell.classList.remove(
+      "open"
+    );
+
+    shell.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+    document.body.classList.remove(
+      "utility-shell-open"
+    );
+
+    frame.src =
+      "about:blank";
+  }
+
+  function wireUtilityBackButton() {
+    if (!shellOpen) {
+      return;
+    }
+
+    try {
+      const childDocument =
+        frame.contentDocument;
+
+      if (!childDocument) {
+        return;
+      }
+
+      childDocument
+        .querySelectorAll(
+          'a[href="index.html"]'
+        )
+        .forEach(link => {
+          link.addEventListener(
+            "click",
+            event => {
+              event.preventDefault();
+              closeUtility();
+            }
+          );
+        });
+
+    } catch (error) {
+      console.warn(
+        "Teacher Dashboard could not wire the utility back button.",
+        error
+      );
+    }
+  }
+
+  function refreshActiveUtility() {
+    if (!shellOpen) {
+      return;
+    }
+
+    try {
+      frame.contentWindow
+        .location
+        .reload();
+
+    } catch (error) {
+      const current =
+        frame.getAttribute(
+          "src"
+        );
+
+      if (current) {
+        frame.src = current;
+      }
+    }
+  }
+
+  document
+    .querySelectorAll(
+      'a[href$=".html"]'
+    )
+    .forEach(link => {
+      const href =
+        link.getAttribute(
+          "href"
+        );
+
+      if (!isUtilityHref(href)) {
+        return;
+      }
+
+      link.addEventListener(
+        "click",
+        event => {
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            event.button !== 0
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+
+          openUtility(
+            href
+          );
+        }
+      );
+    });
+
+  frame.addEventListener(
+    "load",
+    wireUtilityBackButton
+  );
+
+  window.TeacherDashboardShell =
+    Object.freeze({
+      openUtility,
+      closeUtility,
+      refreshActiveUtility,
+
+      isOpen() {
+        return shellOpen;
+      }
+    });
+})();
+</script>
+
 </body>
 </html>
